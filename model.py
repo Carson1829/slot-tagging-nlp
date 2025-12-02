@@ -64,10 +64,10 @@ class MultiHeadAttention(nn.Module):
 
 
 class RNNs(nn.Module):
-    def __init__(self, vocab_size, tag_size, model_type="lstm", has_attention=True, n_layers=2, emb_dim=100, hidden_dim=256, dropout=0.3):
+    def __init__(self, vocab_size, tag_size, model_type="lstm", attention_heads=0, n_layers=2, emb_dim=100, hidden_dim=256, dropout=0.3):
         super().__init__()
         self.rnn_type = model_type
-        self.has_attention = has_attention
+        self.attention_heads = attention_heads
 
         self.embedding = nn.Embedding(vocab_size, emb_dim, padding_idx=0)
 
@@ -105,12 +105,13 @@ class RNNs(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
-        self.attn = MultiHeadAttention(hidden_dim * 2, n_heads=4, dropout=0.3)
+        if self.attention_heads > 0:
+            self.attn = MultiHeadAttention(hidden_dim * 2, n_heads=self.attention_heads, dropout=0.3)
 
         # Linear layer to tag space
         self.fc = nn.Linear(hidden_dim * 2, tag_size)
     
-    def forward(self, x):
+    def forward(self, x, mask):
         """
         x: (batch_size, seq_len)
         returns: (batch_size, seq_len, tag_size)
@@ -119,10 +120,10 @@ class RNNs(nn.Module):
         rnn_out, _ = self.rnn(emb) # (B, L, 2H)
         rnn_out = self.dropout(rnn_out)
 
-        if self.has_attention:
-            padding_mask = (x != 0).long() # (B,S)
+        if self.attention_heads > 0:
+            padding_mask = (mask == 0) # (B,S)
             attn_out = self.attn(rnn_out, padding_mask)  # (B, S, hidden)
-            logits = self.fc(attn_out)
-        else:
-            logits = self.fc(rnn_out)
+            rnn_out = attn_out
+
+        logits = self.fc(rnn_out)
         return logits

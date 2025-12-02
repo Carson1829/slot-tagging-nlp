@@ -44,10 +44,10 @@ def main():
     # create model
     vocab_size = len(word2idx)
     tag_size = len(tag2idx)
-    model = RNNs(vocab_size=vocab_size, tag_size=tag_size, model_type="lstm", has_attention=False)
+    model = RNNs(vocab_size=vocab_size, tag_size=tag_size, model_type="lstm", attention_heads=2)
 
     # train
-    model = train_model(model, train_loader, tag2idx, epochs=20)
+    model = train_model(model, train_loader, tag2idx, epochs=10)
     
     f1, outputs = evaluate(model, val_loader, tag_list, device)
     print("F1:", f1)

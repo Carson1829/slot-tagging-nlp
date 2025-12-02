@@ -10,10 +10,13 @@ def evaluate(model, dataloader, tag_list, device):
     outputs = []
 
     with torch.no_grad():
-        for x, y, mask in dataloader:
-            x = x.to(device)
-            logits = model(x)
-            preds = logits.argmax(dim=-1).cpu()
+        for batch in dataloader:
+            x, y, mask = batch
+            x, y = x.to(device), y.to(device)
+            mask = mask.to(device)
+
+            logits = model(x, mask)
+            preds = logits.argmax(dim=-1)
 
             # iterate each sentence
             for i in range(len(preds)):
@@ -24,11 +27,11 @@ def evaluate(model, dataloader, tag_list, device):
                 pred_tags = [tag_list[idx] for idx in pred_seq]
 
                 # true tags
-                gold_seq = y[i][:seq_len].tolist()
-                gold_tags = [tag_list[idx] for idx in gold_seq]
+                true_seq = y[i][:seq_len].tolist()
+                true_tags = [tag_list[idx] for idx in true_seq]
 
                 all_preds.append(pred_tags)
-                all_labels.append(gold_tags)
+                all_labels.append(true_tags)
                 tags_str = " ".join(pred_tags)
                 outputs.append([i+1, tags_str])
 
