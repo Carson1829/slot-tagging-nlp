@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 
-def train_model(model, dataloader, tag2idx, epochs=10, lr=1e-3):
+def train_model(model, dataloader, tag2idx, epochs=10, lr=1e-3, has_attention=True):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
     optimizer = Adam(model.parameters(), lr=lr)
@@ -13,12 +13,23 @@ def train_model(model, dataloader, tag2idx, epochs=10, lr=1e-3):
         total_loss = 0
         for x, y, mask in dataloader:
             x, y = x.to(device), y.to(device)
-
+            mask = mask.to(device)
             optimizer.zero_grad()
-            logits = model(x)  # (B, L, tag_size)
-            logits = logits.view(-1, logits.shape[-1])  # (B*L, tag_size)
-            y = y.view(-1)                               # (B*L)
-            loss = criterion(logits, y)
+
+            logits = model(x)  # (B, L, C(tag_size))
+            B, L, C = logits.shape
+
+            logits = logits.reshape(B * L, C)
+            y = y.reshape(B * L)
+            mask = mask.reshape(B * L)
+
+            if has_attention:
+                active_logits = logits[mask == 1]
+                active_labels = y[mask == 1]
+                loss = criterion(active_logits, active_labels)
+            else:
+                loss = criterion(logits, y)
+
             loss.backward()
             optimizer.step()
             total_loss += loss.item()

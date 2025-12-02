@@ -46,10 +46,6 @@ def pad_sequences(seqs, pad_value=0):
 
 class DS(Dataset):
     def __init__(self, sentences, tags, word2idx=None, tag2idx=None, build_vocab=False):
-        """
-        path: CSV file with columns "sentence" and "tags"
-        build_vocab: set to True for training set, False for test set
-        """
         self.sentences = sentences
         self.tags = tags
         self.word2idx = word2idx

@@ -2,7 +2,7 @@ import pandas as pd
 import torch
 from data import load_data, tokenize, build_vocab, build_tag_vocab, DS, collate_fn
 from torch.utils.data import DataLoader
-from model import LSTM_NN
+from model import RNNs
 from train import train_model
 from sklearn.model_selection import train_test_split
 from evaluation import evaluate
@@ -44,15 +44,15 @@ def main():
     # create model
     vocab_size = len(word2idx)
     tag_size = len(tag2idx)
-    model = LSTM_NN(vocab_size=vocab_size, tag_size=tag_size)
+    model = RNNs(vocab_size=vocab_size, tag_size=tag_size, model_type="lstm", has_attention=False)
 
     # train
-    model = train_model(model, train_loader, tag2idx, epochs=10)
+    model = train_model(model, train_loader, tag2idx, epochs=20)
     
     f1, outputs = evaluate(model, val_loader, tag_list, device)
     print("F1:", f1)
     output_df = pd.DataFrame(outputs, columns=["ID","IOB Slot tags"])
-    output_df.to_csv("test_pred.csv", index=False)
+    # output_df.to_csv("test_pred.csv", index=False)
     print(f"Predictions saved to csv")
 
 if __name__ == "__main__":
