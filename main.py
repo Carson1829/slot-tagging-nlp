@@ -5,8 +5,7 @@ from torch.utils.data import DataLoader
 from model import LSTM_NN
 from train import train_model
 from sklearn.model_selection import train_test_split
-from seqeval.metrics import f1_score
-from seqeval.scheme import IOB2
+from evaluation import evaluate
 
 
 def main():
@@ -46,41 +45,15 @@ def main():
     vocab_size = len(word2idx)
     tag_size = len(tag2idx)
     model = LSTM_NN(vocab_size=vocab_size, tag_size=tag_size)
-    model.to(device)
 
     # train
-    train_model(model, train_loader, tag2idx, epochs=10)
+    model = train_model(model, train_loader, tag2idx, epochs=10)
     
-    model.eval()
-    all_preds = []
-    all_labels = []
-
-
-    with torch.no_grad():
-        for x, y, mask in val_loader:
-            x = x.to(device)
-            logits = model(x)
-            preds = logits.argmax(dim=-1).cpu()
-
-            # iterate each sentence
-            for i in range(len(preds)):
-                seq_len = int(mask[i].sum().item())
-
-                # predicted tags
-                pred_seq = preds[i][:seq_len].tolist()
-                pred_tags = [tag_list[idx] for idx in pred_seq]
-
-                # true tags
-                gold_seq = y[i][:seq_len].tolist()
-                gold_tags = [tag_list[idx] for idx in gold_seq]
-
-                all_preds.append(pred_tags)
-                all_labels.append(gold_tags)
-
-    f1 = f1_score(all_labels, all_preds, mode="strict", scheme=IOB2)
+    f1, outputs = evaluate(model, val_loader, tag_list, device)
     print("F1:", f1)
-    # output_df.to_csv("test_pred.csv", index=False)
-    # print(f"Predictions saved to output.csv")
+    output_df = pd.DataFrame(outputs, columns=["ID","IOB Slot tags"])
+    output_df.to_csv("test_pred.csv", index=False)
+    print(f"Predictions saved to csv")
 
 if __name__ == "__main__":
     main()

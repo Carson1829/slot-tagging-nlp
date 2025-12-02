@@ -24,3 +24,5 @@ def train_model(model, dataloader, tag2idx, epochs=10, lr=1e-3):
             total_loss += loss.item()
 
         print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss/len(dataloader):.4f}")
+    
+    return model
