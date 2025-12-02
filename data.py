@@ -1,5 +1,7 @@
 import pandas as pd
 from collections import Counter
+from torch.utils.data import Dataset
+import torch
 
 
 def tokenize(sentences):
@@ -32,15 +34,6 @@ def build_tag_vocab(tag_lists):
     tag2idx = {t: i for i, t in enumerate(tag_list)}
     return tag2idx, tag_list
 
-def encode_sentences(tokenized_sents, word2idx):
-    encoded = []
-    for sent in tokenized_sents:
-        encoded.append([word2idx.get(w, word2idx["<UNK>"]) for w in sent])
-    return encoded
-
-def encode_tags(tag_lists, tag2idx):
-    return [[tag2idx[t] for t in tags] for tags in tag_lists]
-
 def pad_sequences(seqs, pad_value=0):
     max_len = max(len(s) for s in seqs)
     padded = []
@@ -49,3 +42,39 @@ def pad_sequences(seqs, pad_value=0):
         padded.append(s + [pad_value] * (max_len - len(s)))
         masks.append([1] * len(s) + [0] * (max_len - len(s)))
     return torch.tensor(padded), torch.tensor(masks)
+
+
+class DS(Dataset):
+    def __init__(self, sentences, tags, word2idx=None, tag2idx=None, build_vocab=False):
+        """
+        path: CSV file with columns "sentence" and "tags"
+        build_vocab: set to True for training set, False for test set
+        """
+        self.sentences = sentences
+        self.tags = tags
+        self.word2idx = word2idx
+        self.tag2idx = tag2idx
+
+    def __len__(self):
+        return len(self.sentences)
+
+    def __getitem__(self, idx):
+        words = self.sentences[idx]
+        x = [self.word2idx.get(w, self.word2idx["<UNK>"]) for w in words]
+
+        if self.tags is None:
+            y = None
+        else:
+            y = [self.tag2idx[t] for t in self.tags[idx]]
+
+        return x, y
+
+# Collate function for DataLoader
+def collate_fn(batch):
+    xs, ys = zip(*batch)
+    padded_x, masks = pad_sequences(xs, pad_value=0)
+    if ys[0] is None:
+        padded_y = torch.zeros_like(padded_x)
+    else:
+        padded_y, _ = pad_sequences(ys, pad_value=0)
+    return padded_x, padded_y, masks
