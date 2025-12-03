@@ -7,9 +7,6 @@ from train import train_val_loop
 from sklearn.model_selection import train_test_split
 
 
-# -------------------------
-# Hyperparameter search example
-# -------------------------
 def hyperparam_search(tag_list, model_types, hidden_sizes, dropouts, num_layers, attention_heads_list, 
                       train_loader, val_loader, vocab_size, tag2idx, emb_dim=100):
 
@@ -74,12 +71,13 @@ def main():
     vocab_size = len(word2idx)
     tag_size = len(tag2idx)
 
-    model_types = ["rnn", "gru", "lstm"]
+    # hyperparameter search field
+    model_types = ["gru", "lstm"]
     hidden_sizes = [128, 256]
     dropouts = [0.1, 0.3]
-    lrates = [1e-3]
-    num_layers = [2, 3, 4]
-    attention_heads_list = [0, 2, 4]  # 0 means no attention
+    # lrates = [1e-3]
+    num_layers = [2, 3]
+    attention_heads_list = [0, 3]  # 0 means no attention
 
     best_state, best_config, best_f1 = hyperparam_search(
         tag_list, model_types, hidden_sizes, dropouts, num_layers, attention_heads_list,
@@ -87,7 +85,9 @@ def main():
         vocab_size, tag2idx,
         emb_dim=100
     )
+    print(f"F1: {best_f1}, Config: {best_config}")
 
+    '''
     # Recreate the model with best hyperparameters
     best_model = RNNs(
         model_type=best_config["model_type"],
@@ -107,6 +107,7 @@ def main():
     # Save
     torch.save(best_model.state_dict(), "best_model.pt")
     print(f"Saved best model with validation F1={best_f1:.4f}")
+    '''
 
 
 if __name__ == "__main__":

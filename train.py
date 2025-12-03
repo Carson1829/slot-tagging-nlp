@@ -23,9 +23,9 @@ def train_model(model, dataloader, tag2idx, epochs=10, lr=1e-3, attention_heads=
             logits = model(x, mask)  # (B, L, C(tag_size))
             B, L, C = logits.shape
 
-            logits = logits.reshape(B * L, C)
+            preds = logits.reshape(B * L, C)
             y = y.reshape(B * L)
-            loss = loss_fn(logits, y)
+            loss = loss_fn(preds, y)
             total_loss += loss.item()
 
             loss.backward()
@@ -57,17 +57,16 @@ def train_val_loop(model, tag_list, train_loader, val_loader, tag2idx, epochs=10
             optimizer.zero_grad()
             logits = model(x, mask)  # (B, L, C(tag_size))
             B, L, C = logits.shape
-            logits = logits.reshape(B*L, C)
+            preds = logits.reshape(B*L, C)
             y = y.reshape(B*L)
             
-            loss = loss_fn(logits, y)
+            loss = loss_fn(preds, y)
             train_loss += loss.item()
             loss.backward()
             optimizer.step()
 
         # ---- Validation ----
         model.eval()
-        val_loss = 0
         all_preds, all_labels = [], []
         with torch.no_grad():
             for batch in val_loader:
@@ -76,10 +75,6 @@ def train_val_loop(model, tag_list, train_loader, val_loader, tag2idx, epochs=10
                 mask = mask.to(device)
                 logits = model(x, mask)
                 B, L, C = logits.shape
-                logits = logits.reshape(B*L, C)
-                y = y.reshape(B*L)
-                loss = loss_fn(logits, y)
-                val_loss += loss.item()
                 preds = logits.argmax(dim=-1)
                 # iterate each sentence
                 for i in range(len(preds)):
@@ -87,17 +82,17 @@ def train_val_loop(model, tag_list, train_loader, val_loader, tag2idx, epochs=10
 
                     # predicted tags
                     pred_seq = preds[i][:seq_len].tolist()
-                    pred_tags = [tag_list[idx] for idx in pred_seq]
+                    pred_tags = [tag_list[int(idx)] for idx in pred_seq]
 
                     # true tags
                     true_seq = y[i][:seq_len].tolist()
-                    true_tags = [tag_list[idx] for idx in true_seq]
+                    true_tags = [tag_list[int(idx)] for idx in true_seq]
 
                     all_preds.append(pred_tags)
                     all_labels.append(true_tags)
 
         val_f1 = f1_score(all_labels, all_preds, mode="strict", scheme=IOB2)
-        print(f"Epoch {epoch}: Train Loss={train_loss/len(train_loader):.4f}, Val Loss={val_loss:.4f}, Val F1={val_f1:.4f}")
+        print(f"Epoch {epoch}: Train Loss={train_loss/len(train_loader):.4f}, Val F1={val_f1:.4f}")
 
         if val_f1 > best_val_f1:
             best_val_f1 = val_f1

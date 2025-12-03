@@ -37,3 +37,34 @@ def evaluate(model, dataloader, tag_list, device):
 
     f1 = f1_score(all_labels, all_preds, mode="strict", scheme=IOB2)
     return f1, outputs
+
+def get_preds(model, dataloader, tag_list, device):
+    model.to(device)
+    model.eval()
+    all_preds = []
+    all_labels = []
+    outputs = []
+    id_ = 1
+
+    with torch.no_grad():
+        for batch in dataloader:
+            x, y, mask = batch
+            x, y = x.to(device), y.to(device)
+            mask = mask.to(device)
+
+            logits = model(x, mask)
+            preds = logits.argmax(dim=-1)
+
+            # iterate each sentence
+            for i in range(len(preds)):
+                seq_len = int(mask[i].sum().item())
+
+                # predicted tags
+                pred_seq = preds[i][:seq_len].tolist()
+                pred_tags = [tag_list[idx] for idx in pred_seq]
+
+                tags_str = " ".join(pred_tags)
+                outputs.append([id_, tags_str])
+                id_ += 1
+
+    return outputs
