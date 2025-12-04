@@ -5,12 +5,19 @@ from seqeval.metrics import f1_score
 from seqeval.scheme import IOB2
 import copy
 
-def train_model(model, dataloader, tag2idx, epochs=10, lr=1e-3, attention_heads=0):
+def train_model(model, dataloader, tag2idx, epochs=10, lr=0.001):
+    '''
+    Training on the full training set for final submission
+    Outputs fully trained model
+    '''
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
+
+    # Optimizer and Loss function
     optimizer = Adam(model.parameters(), lr=lr)
     loss_fn = nn.CrossEntropyLoss(ignore_index=tag2idx["<PAD>"])
 
+    # Training loop
     for epoch in range(epochs):
         model.train()
         total_loss = 0
@@ -35,7 +42,12 @@ def train_model(model, dataloader, tag2idx, epochs=10, lr=1e-3, attention_heads=
     
     return model
 
-def train_val_loop(model, tag_list, train_loader, val_loader, tag2idx, epochs=10, lr=1e-3, attention_heads=0):
+
+def train_val_loop(model, tag_list, train_loader, val_loader, tag2idx, epochs=10, lr=0.001, attention_heads=0):
+    '''
+    Training and validation for hyperparameter tuning
+    Outputs the best validation F1 score and best model state
+    '''
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
     optimizer = Adam(model.parameters(), lr=lr)
@@ -47,7 +59,7 @@ def train_val_loop(model, tag_list, train_loader, val_loader, tag2idx, epochs=10
     patience = 2
 
     for epoch in range(epochs):
-        # ---- Training ----
+        # Training loop
         model.train()
         train_loss = 0
         for batch in train_loader:
@@ -65,7 +77,7 @@ def train_val_loop(model, tag_list, train_loader, val_loader, tag2idx, epochs=10
             loss.backward()
             optimizer.step()
 
-        # ---- Validation ----
+        # validation loop
         model.eval()
         all_preds, all_labels = [], []
         with torch.no_grad():

@@ -5,38 +5,69 @@ from torch.utils.data import DataLoader
 from model import RNNs
 from train import train_val_loop
 from sklearn.model_selection import train_test_split
+import random
 
 
-def hyperparam_search(tag_list, model_types, hidden_sizes, dropouts, num_layers, attention_heads_list, 
-                      train_loader, val_loader, vocab_size, tag2idx, emb_dim=100):
+def search(tag_list, train_loader, val_loader, vocab_size, tag2idx, model_types, hidden_sizes, dropouts, 
+           num_layers, attention_heads_list, lrs, emb_dim=100, num_trials=30):
+    # Track the best validation F1 score found across all trials
+    best_f1 = 0.0
+    best_config = None          # store the hyperparameter set that achieved best F1
+    best_model_state = None     # store the corresponding model weights
 
-    best_overall_f1 = 0.0
-    best_config = None
-    best_model_state = None
+    # Run randomized hyperparameter search
+    for i in range(num_trials):
 
-    for model_type in model_types:
-        for hidden_dim in hidden_sizes:
-            for dropout in dropouts:
-                for n_layer in num_layers:
-                    for attn_heads in attention_heads_list:
-                        print(f"Training {model_type} | H={hidden_dim} | Dropout={dropout} | Layers={n_layer} | Heads={attn_heads}")
-                        model = RNNs(vocab_size, len(tag2idx), model_type, n_layers=n_layer, emb_dim=emb_dim, 
-                                         hidden_dim=hidden_dim, dropout=dropout, attention_heads=attn_heads)
-                        best_state, best_f1 = train_val_loop(model, tag_list, train_loader, val_loader, tag2idx, lr=1e-3, epochs=20)
-                        if best_f1 > best_overall_f1:
-                            best_overall_f1 = best_f1
-                            best_config = {
-                                "model_type": model_type,
-                                "hidden_dim": hidden_dim,
-                                "dropout": dropout,
-                                "num_layers": n_layer,
-                                "attention_heads": attn_heads
-                            }
-                            best_model_state = best_state
+        # --- Sample a random hyperparameter configuration ---
+        config = {
+            "model_type": random.choice(model_types),             # choose RNN, GRU, LSTM
+            "hidden_dim": random.choice(hidden_sizes),            # choose hidden size
+            "dropout": random.choice(dropouts),                   # choose dropout rate
+            "num_layers": random.choice(num_layers),              # choose number of RNN layers
+            "attention_heads": random.choice(attention_heads_list),  # choose number of attention heads
+            "LRs": random.choice(lrs)                             # choose a learning rate (not used below!)
+        }
 
+        print("Trial config:", config)
+
+        # --- Build model for this trial ---
+        model = RNNs(
+            vocab_size=vocab_size,
+            tag_size=len(tag2idx),
+            model_type=config["model_type"],
+            n_layers=config["num_layers"],
+            emb_dim=emb_dim,
+            hidden_dim=config["hidden_dim"],
+            dropout=config["dropout"],
+            attention_heads=config["attention_heads"]
+        )
+
+        # --- Train + validate ---
+        # train_val_loop trains with early stopping and returns:
+        #   - best model state for this trial
+        #   - best F1 obtained on validation set
+        best_state, f1 = train_val_loop(
+            model,
+            tag_list,
+            train_loader,
+            val_loader,
+            tag2idx,
+            lr=1e-3,          # NOTE: fixed LR here, even though a sampled LR exists in config["LRs"]
+            epochs=20
+        )
+
+        # --- Update global best result if this trial outperformed previous trials ---
+        if f1 > best_f1:
+            best_f1 = f1
+            best_config = config
+            best_model_state = best_state
+
+    # After all trials, print summary of top-performing hyperparameters
     print("Best Config:", best_config)
-    print("Best Val F1:", best_overall_f1)
-    return best_model_state, best_config, best_overall_f1
+    print("Best Val F1:", best_f1)
+
+    # Return weights & configuration of best model
+    return best_model_state, best_config, best_f1
 
 
 def main():
@@ -75,39 +106,15 @@ def main():
     model_types = ["gru", "lstm"]
     hidden_sizes = [128, 256]
     dropouts = [0.1, 0.3]
-    # lrates = [1e-3]
-    num_layers = [2, 3]
-    attention_heads_list = [0, 3]  # 0 means no attention
+    lrates = [0.001, 0.003]
+    num_layers = [2, 3, 4]
+    attention_heads_list = [0, 2, 4]  # 0 means no attention
 
-    best_state, best_config, best_f1 = hyperparam_search(
-        tag_list, model_types, hidden_sizes, dropouts, num_layers, attention_heads_list,
-        train_loader, val_loader,
-        vocab_size, tag2idx,
-        emb_dim=100
+    best_state, best_config, best_f1 = search(tag_list, train_loader, val_loader, 
+        vocab_size, tag2idx, model_types, hidden_sizes, dropouts,
+        num_layers, attention_heads_list, lrates
     )
     print(f"F1: {best_f1}, Config: {best_config}")
-
-    '''
-    # Recreate the model with best hyperparameters
-    best_model = RNNs(
-        model_type=best_config["model_type"],
-        vocab_size=vocab_size,
-        tag_size=len(tag2idx),
-        n_layers=best_config["num_layers"],
-        emb_dim=100,
-        hidden_dim=best_config["hidden_dim"],
-        dropout=best_config["dropout"],
-        attention_heads=best_config["attention_heads"]
-    )
-
-    # Load best weights
-    best_model.load_state_dict(best_state)
-    best_model.to(device)
-
-    # Save
-    torch.save(best_model.state_dict(), "best_model.pt")
-    print(f"Saved best model with validation F1={best_f1:.4f}")
-    '''
 
 
 if __name__ == "__main__":

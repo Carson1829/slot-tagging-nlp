@@ -1,0 +1,12 @@
+[project]
+name = "slot-tagging-nlp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.3.3",
+    "scikit-learn>=1.7.2",
+    "seqeval>=1.2.2",
+    "torch>=2.9.1",
+]

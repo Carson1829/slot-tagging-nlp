@@ -64,48 +64,82 @@ class MultiHeadAttention(nn.Module):
 
 
 class RNNs(nn.Module):
-    def __init__(self, vocab_size, tag_size, model_type="lstm", attention_heads=0, n_layers=2, emb_dim=100, hidden_dim=256, dropout=0.1,pretrained_emb=None, freeze_emb=False):
+    def __init__(self, vocab_size, tag_size, model_type="lstm", attention_heads=0,
+                 n_layers=2, emb_dim=100, hidden_dim=256, dropout=0.1,
+                 pretrained_emb=None):
         super().__init__()
         self.rnn_type = model_type
         self.attention_heads = attention_heads
 
+        # Embedding layer: maps token IDs → dense vectors
         self.embedding = nn.Embedding(vocab_size, emb_dim, padding_idx=0)
+
+        # Load pretrained embeddings (e.g., GloVe)
         if pretrained_emb is not None:
-            self.embedding.weight = nn.Parameter(pretrained_emb)
-            self.embedding.weight.requires_grad = not freeze_emb
+            # Replace randomly initialized embedding weights
+            self.embedding.weight = nn.Parameter(pretrained_emb, requires_grad=True)
 
-        # RNN types
+        # Create RNN/LSTM/GRU depending on model_type argument
         if self.rnn_type == "lstm":
-            self.rnn = nn.LSTM(input_size=emb_dim, hidden_size=hidden_dim, num_layers=n_layers,
-                dropout=dropout, batch_first=True, bidirectional=True)
+            self.rnn = nn.LSTM(
+                input_size=emb_dim,
+                hidden_size=hidden_dim,
+                num_layers=n_layers,
+                dropout=dropout,
+                batch_first=True,
+                bidirectional=True   # BiRNN: forward + backward context
+            )
         elif self.rnn_type == "gru":
-            self.rnn = nn.GRU(input_size=emb_dim, hidden_size=hidden_dim, num_layers=n_layers,
-                dropout=dropout, batch_first=True, bidirectional=True)
-        else: # self.rnn_type == "rnn":
-            self.rnn = nn.RNN(input_size=emb_dim, hidden_size=hidden_dim, num_layers=n_layers,
-                dropout=dropout, nonlinearity="tanh", batch_first=True, bidirectional=True)
+            self.rnn = nn.GRU(
+                input_size=emb_dim,
+                hidden_size=hidden_dim,
+                num_layers=n_layers,
+                dropout=dropout,
+                batch_first=True,
+                bidirectional=True
+            )
+        else:  # vanilla RNN
+            self.rnn = nn.RNN(
+                input_size=emb_dim,
+                hidden_size=hidden_dim,
+                num_layers=n_layers,
+                dropout=dropout,
+                nonlinearity="tanh",
+                batch_first=True,
+                bidirectional=True
+            )
 
+        # Dropout after RNN for regularization
         self.dropout = nn.Dropout(dropout)
 
+        # Optional multi-head attention layer
         if self.attention_heads > 0:
+            # Multi-head self-attention (your implementation)
             self.attn = MultiHeadAttention(hidden_dim * 2, n_heads=self.attention_heads, dropout=0.3)
+            self.attn_norm = nn.LayerNorm(hidden_dim * 2)  # Residual + normalization
 
-        # Linear layer to tag space
+        # Final classifier — projects hidden states to tag logits
         self.fc = nn.Linear(hidden_dim * 2, tag_size)
     
     def forward(self, x, mask):
         """
-        x: (batch_size, seq_len)
-        returns: (batch_size, seq_len, tag_size)
+        x: (batch_size, seq_len) token IDs
+        mask: (batch_size, seq_len) binary mask, 1 = real token, 0 = padding
         """
-        emb = self.embedding(x)       # (B, L, E)
-        rnn_out, _ = self.rnn(emb) # (B, L, 2H)
+        # Convert token IDs → embeddings
+        emb = self.embedding(x)  # (B, L, E)
+
+        # Run through selected RNN type
+        rnn_out, _ = self.rnn(emb)  # (B, L, 2H)
         rnn_out = self.dropout(rnn_out)
 
+        # Optional attention block
         if self.attention_heads > 0:
-            padding_mask = (mask == 0) # (B,S)
-            attn_out = self.attn(rnn_out, padding_mask)  # (B, S, hidden)
-            rnn_out = attn_out
+            padding_mask = (mask == 0)  # Mask: True at padding positions
+            attn_out = self.attn(rnn_out, padding_mask)  # Self-attention output
+            # Residual connection and layer norm
+            rnn_out = self.attn_norm(rnn_out + attn_out)
 
-        logits = self.fc(rnn_out)
+        # Compute tag logits for each token
+        logits = self.fc(rnn_out)  # (B, L, tag_size)
         return logits

@@ -8,11 +8,6 @@ from sklearn.model_selection import train_test_split
 from evaluation import get_preds
 import argparse
 
-'''
-Best Val F1: 0.8432432432432432
-Best Config: {'model_type': 'lstm', 'hidden_dim': 256, 'dropout': 0.1, 'num_layers': 2, 'attention_heads': 0}
-'''
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -51,10 +46,10 @@ def main():
     vocab_size = len(word2idx)
     tag_size = len(tag2idx)
     emb_matrix = torch.load("embedding.pt")
-    model = RNNs(vocab_size=vocab_size, tag_size=tag_size, model_type="lstm", attention_heads=0, pretrained_emb=emb_matrix)
+    model = RNNs(vocab_size=vocab_size, tag_size=tag_size, model_type="lstm", attention_heads=2, n_layers=2, hidden_dim=256, dropout=0.1, pretrained_emb=emb_matrix)
 
     # train
-    model = train_model(model, train_loader, tag2idx, epochs=18)
+    model = train_model(model, train_loader, tag2idx, epochs=10, lr=0.001)
     
     outputs = get_preds(model, test_loader, tag_list, device)
     output_df = pd.DataFrame(outputs, columns=["ID","IOB Slot tags"])
